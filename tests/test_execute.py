@@ -5,7 +5,12 @@ import pytest
 from jupytext import read
 from jupytext.cli import jupytext
 
-from .utils import requires_ir_kernel, requires_nbconvert, skip_on_windows
+from .utils import (
+    requires_ir_kernel,
+    requires_nbconvert,
+    requires_user_kernel_python3,
+    skip_on_windows,
+)
 
 
 @requires_nbconvert
@@ -227,3 +232,55 @@ sum(ast.literal_eval(line) for line in text.splitlines())
     nb = read(tmp2_ipynb)
     assert len(nb.cells) == 3
     assert nb.cells[2].outputs[0]["data"] == {"text/plain": "3"}
+
+
+@requires_user_kernel_python3
+@pytest.mark.parametrize("cell_language", ["python", "r", "R"])
+def test_set_kernel_python_782(tmpdir, cwd_tmpdir, capsys, cell_language):
+    text_md = f"""```{cell_language}
+1 + 1
+```
+"""
+    tmpdir.join("test.md").write(text_md)
+    jupytext(["--set-kernel", "python3", "test.md"])
+    nb = read("test.md")
+    assert len(nb.cells) == 1
+    cell = nb.cells[0]
+
+    out, err = capsys.readouterr()
+    assert not err
+    if cell_language == "python":
+        assert cell.cell_type == "code"
+        assert cell.source == "1 + 1"
+        assert "Warning" not in out
+    else:
+        assert cell.cell_type == "markdown"
+        assert cell.source == text_md[:-1]
+        assert "Warning: " in out
+        assert f"the previous language for this notebook was '{cell_language}'" in out
+
+
+@requires_ir_kernel
+@pytest.mark.parametrize("cell_language", ["python", "r", "R"])
+def test_set_kernel_ir_782(tmpdir, cwd_tmpdir, capsys, cell_language):
+    text_md = f"""```{cell_language}
+1 + 1
+```
+"""
+    tmpdir.join("test.md").write(text_md)
+    jupytext(["--set-kernel", "ir", "test.md"])
+    nb = read("test.md")
+    assert len(nb.cells) == 1
+    cell = nb.cells[0]
+
+    out, err = capsys.readouterr()
+    assert not err
+    if cell_language in ["r", "R"]:
+        assert cell.cell_type == "code"
+        assert cell.source == "1 + 1"
+        assert "Warning" not in out
+    else:
+        assert cell.cell_type == "markdown"
+        assert cell.source == text_md[:-1]
+        assert "Warning: " in out
+        assert f"the previous language for this notebook was '{cell_language}'" in out

@@ -523,12 +523,11 @@ def jupytext_single_file(nb_file, args, log):
         set_kernel = "-"
 
     if set_kernel:
+        language = (
+            notebook.metadata.get("jupytext", {}).get("main_language")
+            or notebook.metadata["kernelspec"]["language"]
+        )
         if set_kernel == "-":
-            language = (
-                notebook.metadata.get("jupytext", {}).get("main_language")
-                or notebook.metadata["kernelspec"]["language"]
-            )
-
             if not language:
                 raise ValueError(
                     "Cannot infer a kernel as notebook language is not defined"
@@ -552,6 +551,13 @@ def jupytext_single_file(nb_file, args, log):
             }
 
         log("[jupytext] Setting kernel {}".format(kernelspec.get("name")))
+        if language and kernelspec["language"] != language:
+            log(
+                "[jupytext] Warning: the new kernel language is '{}' "
+                "but the previous language for this notebook was '{}'".format(
+                    kernelspec["language"], language
+                )
+            )
         args.update_metadata["kernelspec"] = kernelspec
 
     # Are we updating a text file that has a metadata filter? #212
