@@ -3,10 +3,12 @@ import shutil
 
 import pytest
 
+import jupytext
+from jupytext.cli import system
 from jupytext.compare import compare_notebooks
 from jupytext.contentsmanager import TextFileContentsManager
 
-from .utils import list_notebooks
+from .utils import list_notebooks, requires_black
 
 
 @pytest.mark.parametrize("nb_file", list_notebooks("python"))
@@ -143,3 +145,70 @@ def test_text_notebooks_can_be_trusted(nb_file, tmpdir, no_jupytext_version_numb
     model = cm.get(file)
     for cell in model["content"].cells:
         assert cell.metadata.get("trusted", True)
+
+
+@requires_black
+def test_apply_black_notebook_is_still_trusted(
+    tmpdir,
+    cwd_tmpdir,
+    capsys,
+    python_notebook,
+    py_nb="""# %% [markdown]
+# In this notebook we create a generator for the Fibonacci
+# sequence, defined by $F_0=0$, $F_1=1$, $F_{n+2}=F_{n+1}+F_{n}$
+
+# %%
+def fibonacci_generator():
+    i = 0
+    j = 1
+    while True:
+        yield i
+        i, j = j, i+j
+
+
+# %%
+f = fibonacci_generator()
+
+# %%
+[next(f) for i in range(12)]""",
+):
+    # Jupytext config: pair all the notebooks
+    tmpdir.join("jupytext.toml").write(
+        """# Always pair ipynb notebooks to py:percent files
+formats = "ipynb,py:percent"
+"""
+    )
+
+    # Contents manager
+    cm = TextFileContentsManager()
+    cm.root_dir = str(tmpdir)
+
+    # Create a sample notebook
+    nb = python_notebook
+    nb.cells = jupytext.reads(py_nb, "py:percent").cells
+
+    # Remove the notebook from the database of signed notebooks
+    cm.notary.unsign(nb)
+
+    # Save the notebook
+    cm.save(model=dict(type="notebook", content=nb), path="Fibonacci.ipynb")
+
+    # Reload - should be signed
+    model = cm.get("Fibonacci.ipynb")
+    for cell in model["content"].cells:
+        assert cell.metadata.get("trusted", True)
+
+    out, err = capsys.readouterr()
+    assert "trusted" not in out
+
+    # Run black
+    system("black", "Fibonacci.py")
+
+    # Reload - should still be signed
+    model = cm.get("Fibonacci.ipynb")
+    for cell in model["content"].cells:
+        assert "i+j" not in cell.source
+        assert cell.metadata.get("trusted", True)
+
+    out, err = capsys.readouterr()
+    assert "trusted" not in out
