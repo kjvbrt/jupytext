@@ -195,3 +195,18 @@ def test_multiple_formats_771(tmpdir, cwd_tmpdir, python_notebook):
 
     assert notebooks_dir.join("module.ipynb").isfile()
     assert scripts_dir.join("module.py").isfile()
+
+
+@pytest.mark.parametrize("cell_metadata_filter", [None, "-id", "-all"])
+def test_cell_metadata_filter_840(cell_metadata_filter, tmpdir, cwd_tmpdir):
+    if cell_metadata_filter is not None:
+        tmpdir.join("jupytext.toml").write(
+            f'cell_metadata_filter = "{cell_metadata_filter}"\n'
+        )
+    nbformat.write(
+        new_notebook(cells=[new_code_cell("1+1", metadata={"id": "123"})]), "test.ipynb"
+    )
+    jupytext(["test.ipynb", "--to", "markdown"])
+
+    md = tmpdir.join("test.md").read()
+    assert ("123" in md) == (cell_metadata_filter is None)
