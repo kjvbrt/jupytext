@@ -1,6 +1,10 @@
 # Stop everything if one command fails
 set -e
 
+# Install RStudio latest
+wget https://s3.amazonaws.com/rstudio-ide-build/desktop/bionic/amd64/rstudio-2021.09.0-preview%2B341-amd64.deb
+apt install ./rstudio.*.deb
+
 # Install from sources
 # NB: If you want to use Jupytext on your binder, don't install it from source,
 # just add "jupytext" to your "binder/requirements.txt" instead.
