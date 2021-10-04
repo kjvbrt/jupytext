@@ -1,4 +1,4 @@
-import os
+from os import chdir
 
 import pytest
 
@@ -12,49 +12,37 @@ def test_find_jupytext_configuration_file(tmpdir):
     nested = tmpdir.mkdir("nested")
 
     # Start with no configuration
-    assert find_jupytext_configuration_file(str(nested)) is None
+    assert find_jupytext_configuration_file(nested) is None
 
     # Configuration file in the parent directory
     root_config = tmpdir.join("jupytext.yml")
     root_config.write("\n")
-    assert os.path.samefile(
-        find_jupytext_configuration_file(str(tmpdir)), str(root_config)
-    )
-    assert os.path.samefile(
-        find_jupytext_configuration_file(str(nested)), str(root_config)
-    )
+    assert find_jupytext_configuration_file(tmpdir) == root_config
+    assert find_jupytext_configuration_file(nested) == root_config
 
     # Local pyproject file
     pyproject_config = nested.join("pyproject.toml")
     pyproject_config.write("[tool.jupytext]\n")
-    assert os.path.samefile(
-        find_jupytext_configuration_file(str(tmpdir)), str(root_config)
-    )
-    assert os.path.samefile(
-        find_jupytext_configuration_file(str(nested)), str(pyproject_config)
-    )
+    assert find_jupytext_configuration_file(tmpdir) == root_config
+    assert find_jupytext_configuration_file(nested) == pyproject_config
 
     # Local configuration file
     local_config = nested.join(".jupytext")
     local_config.write("\n")
-    assert os.path.samefile(
-        find_jupytext_configuration_file(str(tmpdir)), str(root_config)
-    )
-    assert os.path.samefile(
-        find_jupytext_configuration_file(str(nested)), str(local_config)
-    )
+    assert find_jupytext_configuration_file(tmpdir) == root_config
+    assert find_jupytext_configuration_file(nested) == local_config
 
 
 def test_jupytext_py_is_not_a_configuration_file(tmpdir):
     jupytext_py = tmpdir.join("jupytext.py")
     jupytext_py.write("# Not a config file!")
 
-    assert find_jupytext_configuration_file(str(tmpdir)) is None
+    assert find_jupytext_configuration_file(tmpdir) is None
 
     dot_jupytext_py = tmpdir.join(".jupytext.py")
     dot_jupytext_py.write("# This is a config file!")
 
-    assert find_jupytext_configuration_file(str(tmpdir)) == str(dot_jupytext_py)
+    assert find_jupytext_configuration_file(tmpdir) == dot_jupytext_py
 
 
 @pytest.mark.parametrize(
@@ -109,7 +97,7 @@ c.cell_metadata_filter = "all"
 """
         )
 
-    config = load_jupytext_configuration_file(str(full_config_path))
+    config = load_jupytext_configuration_file(full_config_path)
     assert config.formats == "ipynb,py:percent"
     assert config.notebook_metadata_filter == "all"
     assert config.cell_metadata_filter == "all"
@@ -164,7 +152,7 @@ def test_jupytext_formats(tmpdir, content_toml, formats_short_form):
     jupytext_toml = tmpdir.join("jupytext.toml")
     jupytext_toml.write(content_toml)
 
-    config = load_jupytext_configuration_file(str(jupytext_toml))
+    config = load_jupytext_configuration_file(jupytext_toml)
     assert config.formats == formats_short_form
 
 
@@ -174,9 +162,9 @@ def test_deprecated_formats_cause_warning(
     jupytext_toml = tmpdir.join("jupytext.toml")
     jupytext_toml.write(content_toml)
 
-    config = load_jupytext_configuration_file(str(jupytext_toml))
+    config = load_jupytext_configuration_file(jupytext_toml)
     with pytest.warns(FutureWarning, match="use 'formats'"):
-        assert config.default_formats(str(tmpdir.join("test.md"))) == "ipynb,md"
+        assert config.default_formats(tmpdir.join("test.md")) == "ipynb,md"
 
 
 @pytest.mark.parametrize(
@@ -186,8 +174,22 @@ def test_deprecated_formats_cause_warning(
 def test_deprecated_options_cause_warning(tmpdir, option_name):
     jupytext_toml = tmpdir.join("jupytext.toml")
     jupytext_toml.write(f"default_{option_name} = 'value'")
-    config = load_jupytext_configuration_file(str(jupytext_toml))
+    config = load_jupytext_configuration_file(jupytext_toml)
     fmt = {}
     with pytest.warns(FutureWarning, match=f"use '{option_name}'"):
         config.set_default_format_options(fmt)
         assert fmt[option_name] == "value"
+
+
+def test_config_is_found_in_dot_folder_863(tmp_path):
+    # Create a Jupytext config file
+    cfg_file = tmp_path / "jupytext.toml"
+    (cfg_file).write_text("\n")
+
+    # change dir to a subfolder
+    subfolder = tmp_path / "subfolder"
+    subfolder.mkdir()
+    chdir(subfolder)
+
+    assert find_jupytext_configuration_file("..").samefile(cfg_file)
+    # assert find_jupytext_configuration_file(".").samefile(cfg_file)  # fails because Path('.').parent == Path('.')

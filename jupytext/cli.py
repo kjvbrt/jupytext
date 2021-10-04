@@ -526,7 +526,7 @@ def jupytext_single_file(nb_file, args, log):
         if args.output_format:
             nb_dest = full_path(bp, args.output_format)
 
-    config = load_jupytext_config(os.path.abspath(nb_file))
+    config = load_jupytext_config(nb_file)
 
     # Just acting on metadata / pipe => save in place
     save_in_place = not nb_dest and not args.sync

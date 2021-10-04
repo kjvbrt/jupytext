@@ -1,7 +1,8 @@
 """Find and read Jupytext configuration files"""
 import json
-import os
 import warnings
+from os import environ
+from pathlib import Path
 
 import yaml
 from traitlets import Bool, Dict, Enum, Float, List, Unicode, Union
@@ -36,8 +37,8 @@ JUPYTEXT_CONFIG_FILES.extend(
 PYPROJECT_FILE = "pyproject.toml"
 
 JUPYTEXT_CEILING_DIRECTORIES = [
-    path
-    for path in os.environ.get("JUPYTEXT_CEILING_DIRECTORIES", "").split(":")
+    Path(path)
+    for path in environ.get("JUPYTEXT_CEILING_DIRECTORIES", "").split(":")
     if path
 ]
 
@@ -277,27 +278,24 @@ def global_jupytext_configuration_directories():
 
     config_dirs = []
 
-    if "XDG_CONFIG_HOME" in os.environ:
-        config_dirs.extend(os.environ["XDG_CONFIG_HOME"].split(":"))
-    elif "USERPROFILE" in os.environ:
-        config_dirs.append(os.environ["USERPROFILE"])
-    elif "HOME" in os.environ:
-        config_dirs.append(os.path.join(os.environ["HOME"], ".config"))
-        config_dirs.append(os.environ["HOME"])
+    if "XDG_CONFIG_HOME" in environ:
+        config_dirs.extend(environ["XDG_CONFIG_HOME"].split(":"))
+    elif "USERPROFILE" in environ:
+        config_dirs.append(environ["USERPROFILE"])
+    elif "HOME" in environ:
+        config_dirs.append(Path(environ["HOME"]) / ".config")
+        config_dirs.append(environ["HOME"])
 
-    if "XDG_CONFIG_DIRS" in os.environ:
-        config_dirs.extend(os.environ["XDG_CONFIG_DIRS"].split(":"))
-    elif "ALLUSERSPROFILE" in os.environ:
-        config_dirs.append(os.environ["ALLUSERSPROFILE"])
+    if "XDG_CONFIG_DIRS" in environ:
+        config_dirs.extend(environ["XDG_CONFIG_DIRS"].split(":"))
+    elif "ALLUSERSPROFILE" in environ:
+        config_dirs.append(environ["ALLUSERSPROFILE"])
     else:
         config_dirs.extend(["/usr/local/share/", "/usr/share/"])
 
     for config_dir in config_dirs:
-        for config_dir_jupytext_or_not in [
-            os.path.join(config_dir, "jupytext"),
-            config_dir,
-        ]:
-            yield config_dir_jupytext_or_not
+        yield Path(config_dir)
+        yield Path(config_dir) / "jupytext"
 
 
 def find_global_jupytext_configuration_file():
@@ -313,30 +311,31 @@ def find_global_jupytext_configuration_file():
 
 def find_jupytext_configuration_file(path, search_parent_dirs=True):
     """Return the first jupytext configuration file in the current directory, or any parent directory"""
-    if os.path.isdir(path):
-        for filename in JUPYTEXT_CONFIG_FILES:
-            full_path = os.path.join(path, filename)
-            if os.path.isfile(full_path):
-                return full_path
+    path = Path(path)
 
-    pyproject_path = os.path.join(path, PYPROJECT_FILE)
-    if os.path.isfile(pyproject_path):
+    if path.is_dir():
+        for filename in JUPYTEXT_CONFIG_FILES:
+            cfg_file = path / filename
+            if cfg_file.is_file():
+                return cfg_file
+
+    pyproject_path = path / PYPROJECT_FILE
+    if pyproject_path.is_file():
         import toml
 
-        with open(pyproject_path, "r") as stream:
-            doc = toml.loads(stream.read())
-            if doc.get("tool", {}).get("jupytext") is not None:
-                return pyproject_path
+        doc = toml.loads(pyproject_path.read_text())
+        if doc.get("tool", {}).get("jupytext") is not None:
+            return pyproject_path
 
     if not search_parent_dirs:
         return None
 
-    if JUPYTEXT_CEILING_DIRECTORIES and os.path.isdir(path):
+    if path.is_dir():
         for ceiling_dir in JUPYTEXT_CEILING_DIRECTORIES:
-            if os.path.isdir(ceiling_dir) and os.path.samefile(path, ceiling_dir):
+            if ceiling_dir.is_dir() and path.samefile(ceiling_dir):
                 return None
 
-    parent_dir = os.path.dirname(path)
+    parent_dir = path.parent
     if parent_dir == path:
         return find_global_jupytext_configuration_file()
 
@@ -345,29 +344,31 @@ def find_jupytext_configuration_file(path, search_parent_dirs=True):
 
 def parse_jupytext_configuration_file(jupytext_config_file, stream=None):
     """Read a Jupytext config file, and return a dict"""
-    if not jupytext_config_file.endswith(".py") and stream is None:
-        with open(jupytext_config_file, encoding="utf-8") as stream:
-            return parse_jupytext_configuration_file(
-                jupytext_config_file, stream.read()
-            )
+    if stream is None and not jupytext_config_file.suffix == ".py":
+        return parse_jupytext_configuration_file(
+            jupytext_config_file, jupytext_config_file.read_text(encoding="utf8")
+        )
 
     try:
-        if jupytext_config_file.endswith((".toml", "jupytext")):
+        if jupytext_config_file.suffix == ".toml" or jupytext_config_file.name in {
+            "jupytext",
+            ".jupytext",
+        }:
             import toml
 
             doc = toml.loads(stream)
-            if jupytext_config_file.endswith(PYPROJECT_FILE):
+            if jupytext_config_file.name == PYPROJECT_FILE:
                 return doc["tool"]["jupytext"]
             else:
                 return doc
 
-        if jupytext_config_file.endswith((".yml", ".yaml")):
+        if jupytext_config_file.suffix in {".yml", ".yaml"}:
             return yaml.safe_load(stream)
 
-        if jupytext_config_file.endswith(".json"):
+        if jupytext_config_file.suffix == ".json":
             return json.loads(stream)
 
-        return PyFileConfigLoader(jupytext_config_file).load_config()
+        return PyFileConfigLoader(str(jupytext_config_file)).load_config()
     except (ValueError, NameError) as err:
         raise JupytextConfigurationError(
             "The Jupytext configuration file {} is incorrect: {}".format(
@@ -378,6 +379,7 @@ def parse_jupytext_configuration_file(jupytext_config_file, stream=None):
 
 def load_jupytext_configuration_file(config_file, stream=None):
     """Read and validate a Jupytext configuration file, and return a JupytextConfiguration object"""
+    config_file = Path(config_file)
     config_dict = parse_jupytext_configuration_file(config_file, stream)
     config = validate_jupytext_configuration_file(config_file, config_dict)
     # formats can be a dict prefix => format
@@ -394,10 +396,11 @@ def load_jupytext_configuration_file(config_file, stream=None):
 
 def load_jupytext_config(nb_file):
     """Return the jupytext configuration file in the same folder, or in a parent folder, of the current file, if any"""
+    nb_file = Path(nb_file).absolute()
     config_file = find_jupytext_configuration_file(nb_file)
     if config_file is None:
         return None
-    if os.path.isfile(nb_file) and os.path.samefile(config_file, nb_file):
+    if nb_file.is_file() and config_file.samefile(nb_file):
         return None
     config_file = find_jupytext_configuration_file(nb_file)
     return load_jupytext_configuration_file(config_file)
@@ -439,7 +442,7 @@ def notebook_formats(nbk, config, path, fallback_on_current_fmt=True):
         if not fallback_on_current_fmt:
             return None
         text_repr = jupytext_metadata.get("text_representation", {})
-        ext = os.path.splitext(path)[1]
+        ext = Path(path).suffix
         fmt = {"extension": ext}
 
         if ext == text_repr.get("extension") and text_repr.get("format_name"):

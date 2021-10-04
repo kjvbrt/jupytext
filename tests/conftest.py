@@ -16,7 +16,7 @@ from jupytext.cli import system
 
 # Pytest's tmpdir is in /tmp (at least for me), so this helps avoiding interferences between
 # global configuration on HOME and the test collection
-jupytext.config.JUPYTEXT_CEILING_DIRECTORIES = ["/tmp/"]
+jupytext.config.JUPYTEXT_CEILING_DIRECTORIES = [Path("/tmp/")]
 
 
 @pytest.fixture
