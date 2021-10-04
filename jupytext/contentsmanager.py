@@ -517,7 +517,7 @@ to your jupytext.toml file
             if config_file is None:
                 return None
             self.log.info("Loading Jupytext configuration file at %s", config_file)
-            if config_file.endswith(".py") and not is_os_path:
+            if not is_os_path and config_file.endswith(".py"):
                 config_file = self._get_os_path(config_file)
                 is_os_path = True
             if is_os_path:
