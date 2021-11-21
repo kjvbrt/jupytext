@@ -1,6 +1,13 @@
 Jupytext ChangeLog
 ==================
 
+1.14.0-dev (2021-11-??)
+-----------------------
+
+**Added**
+- New option `--sync_assert_latest` to enforce the assumption that the file was the last modified among the various paired representations of a notebook, and to reproduce the security of the Jupytext plugin for Jupyter in other notebook editors (VS Code, PyCharm) ([#875](https://github.com/mwouts/jupytext/issues/875))
+
+
 1.13.1 (2021-10-07)
 -------------------
 

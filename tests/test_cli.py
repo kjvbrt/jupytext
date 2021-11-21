@@ -1410,3 +1410,27 @@ def test_round_trip_with_null_metadata_792(tmpdir, cwd_tmpdir, python_notebook):
     jupytext(["--to", "ipynb", "test.py"])
     nb = read("test.ipynb")
     assert nb.metadata.kernelspec.env is None
+
+
+def test_sync_assert_latest(tmpdir, cwd_tmpdir, python_notebook):
+    write(python_notebook, "test.py")
+    jupytext(["--set-formats", "py,ipynb", "test.py"])
+
+    assert tmpdir.join("test.ipynb").isfile()
+
+    # Wait some time
+    time.sleep(0.5)
+
+    # Modify the ipynb file
+    python_notebook.cells.append(new_markdown_cell("New cell"))
+    write(python_notebook, "test.ipynb")
+
+    # Jupytext --sync_assert_latest on the py file FAILS
+    with pytest.raises(
+        AssertionError,
+        match="test.py (.*) is not the most recent file in the paired notebook",
+    ):
+        jupytext(["--sync-assert-latest", "test.py"])
+
+    # Jupytext --sync_assert_most_recent on the ipynb file works
+    jupytext(["--sync-assert-latest", "test.ipynb"])

@@ -157,6 +157,13 @@ def parse_jupytext_args(args=None):
         action="store_true",
     )
     action.add_argument(
+        "--sync-assert-latest",
+        "-l",
+        help="Same as --sync, with an additional check that the given file is the "
+        "the most recent among the paired representations of the notebook.",
+        action="store_true",
+    )
+    action.add_argument(
         "--paired-paths",
         "-p",
         help="List the locations of the alternative representations for this notebook.",
@@ -374,6 +381,9 @@ def jupytext(args=None):
 
     if args.run_path:
         args.execute = True
+
+    if args.sync_assert_latest:
+        args.sync = True
 
     if (
         (args.test or args.test_strict)
@@ -654,6 +664,20 @@ def jupytext_single_file(nb_file, args, log):
                 return 1
         else:
             nb_files = [nb_file]
+
+    if args.sync_assert_latest:
+        nb_file_mtime = os.lstat(nb_file).st_mtime
+
+        for alt_path, alt_fmt in paired_paths(nb_file, fmt, formats):
+            if not os.path.isfile(alt_path):
+                continue
+            alt_path_mtime = os.lstat(alt_path).st_mtime
+            if alt_path_mtime > nb_file_mtime:
+                raise AssertionError(
+                    f"{nb_file} (last modified {nb_file_mtime}) is not "
+                    f"the most recent file in the paired notebook: "
+                    f"{alt_path} is more recent (last modified {alt_path_mtime})."
+                )
 
     # II. ### Apply commands onto the notebook ###
     # Pipe the notebook into the desired commands
