@@ -188,3 +188,30 @@ def test_metadata_filter_from_config_has_precedence_over_notebook_metadata(
 
     py = tmpdir.join("test.py").read()
     assert "notebook_metadata_filter: all" in py
+
+
+@pytest.mark.parametrize("use_pyproject_toml", [False, True])
+def test_pyproject_toml_file_issue_876(
+    tmpdir, cwd_tmpdir, python_notebook, use_pyproject_toml
+):
+    """In this test we reproduce the conditions for issue #876 ('project'
+    was replaced with tmpdir)"""
+    if use_pyproject_toml:
+        tmpdir.join("pyproject.toml").write(
+            """[tool.jupytext]
+formats = "ipynb,py:light"
+"""
+        )
+    else:
+        tmpdir.join("jupytext.toml").write(
+            """formats = "ipynb,py:light"
+"""
+        )
+    test_dir = tmpdir.mkdir("module").mkdir("submodule_2").mkdir("tests")
+    cm = jupytext.TextFileContentsManager()
+    cm.root_dir = str(tmpdir)
+
+    cm.save(
+        notebook_model(python_notebook), "module/submodule_2/tests/test_notebook.ipynb"
+    )
+    assert test_dir.join("test_notebook.py").isfile()
