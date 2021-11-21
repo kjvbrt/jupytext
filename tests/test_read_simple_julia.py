@@ -1,5 +1,8 @@
+import pytest
+from nbformat.v4.nbbase import new_code_cell, new_markdown_cell, new_notebook
+
 import jupytext
-from jupytext.compare import compare
+from jupytext.compare import compare, compare_notebooks
 
 
 def test_read_simple_file(
@@ -51,3 +54,14 @@ end'''
 
     julia2 = jupytext.writes(nb, "jl")
     compare(julia2, julia)
+
+
+@pytest.mark.parametrize("format_name", ["light", "percent"])
+def test_round_trip_markdown_enum_plus(format_name):
+    """This test was extracted from issue #872"""
+    nb = new_notebook(cells=[new_markdown_cell("+ item"), new_code_cell("fun(3)")])
+
+    fmt = "jl:" + format_name
+    text = jupytext.writes(nb, fmt=fmt)
+    nb2 = jupytext.reads(text, fmt=fmt)
+    compare_notebooks(nb2, nb)
