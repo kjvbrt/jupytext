@@ -9,6 +9,7 @@ Jupytext ChangeLog
 
 **Added**
 - Added Tcl as a supported language ([#930](https://github.com/mwouts/jupytext/issues/930)) - thanks to [shishitao](https://github.com/shishitao) for this contribution
+- Added a link to Retrolab on Binder in the README ([#929](https://github.com/mwouts/jupytext/issues/929))
 
 **Changed**
 - The Jupytext contents manager is derived from the `LargeFileManager` imported from `jupyter_server` rathen than `notebook` ([#933](https://github.com/mwouts/jupytext/issues/933))
